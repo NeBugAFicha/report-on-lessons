@@ -14,7 +14,7 @@ class LessonController {
   getLessons_get(req, res) {
     res.writeHead(200, { 'Content-Type': 'text/html' });
     const indexStream = fs.createReadStream(
-      '/Users/anastas/VSCode-projects/lessons/views/index.html',
+      '/Users/anastas/VSCode-projects/report-on-lessons/views/index.html',
       'utf-8',
     );
     indexStream.pipe(res);
@@ -170,7 +170,7 @@ class LessonController {
   createLesson_get(req, res) {
     res.writeHead(200, { 'Content-Type': 'text/html' });
     const indexStream = fs.createReadStream(
-      '/Users/anastas/VSCode-projects/lessons/views/createLessons.html',
+      '/Users/anastas/VSCode-projects/report-on-lessons/views/createLessons.html',
       'utf-8',
     );
     indexStream.pipe(res);

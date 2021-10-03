@@ -4,8 +4,8 @@
   "description": "",
   "main": "app.js",
   "scripts": {
-    "findLessonsTest": "node ./node_modules/mocha/bin/mocha",
-    "createLessonsTest": "node ./node_modules/mocha/bin/mocha"
+    "flTest": "mocha test/findLessonsTest.js",
+    "clTest": "mocha test/createLessonsTest"
   },
   "author": "Egor Aleksanov",
   "license": "ISC",
