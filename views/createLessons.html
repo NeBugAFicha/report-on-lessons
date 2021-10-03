@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+  <head></head>
+  <body>
+    <h1>Create Lessons: </h1>
+        <form action='/lessons'>
+            <label for='teacherIds'>TeacherIds : </label>
+            <input type='text' name='teacherIds' id='teacherIds' required/><br>
+            <label for="title">Title : </label>
+            <input type='title' name='title' id='title' required/><br>
+            <label for='days'>Days : </label>
+            <input type='text' name='days' id='days' required/><br>
+            <label for='firstDate'>FirstDate : </label>
+            <input type='text' name='firstDate' id='firstDate' required/><br>
+            <label for='lessonsCount'>LessonsCount : </label>
+            <input type='text' name='lessonsCount'  id='lessonsCount' /><br>
+            <label for='lastDate'>LastDate : </label>
+            <input type='text' name='lastDate' id='lastDate' /><br>
+            <button>Send</button> 
+        </form>
+
+        <table id='table'></table>
+        <ul id='pagination'>
+
+        </ul>
+
+  </body>
+  <script>
+    const form = document.querySelector('form');
+    form.addEventListener('submit',async (e)=>{
+      e.preventDefault();
+      const teacherIds = form.teacherIds.value;
+      const title = form.title.value;
+      const days = form.days.value;
+      const firstDate = form.firstDate.value;
+      const lessonsCount = form.lessonsCount.value;
+      const lastDate = form.lastDate.value;
+      let table = document.querySelector('#table');
+      try{
+        table.innerHTML = '';
+        const res = await fetch('/lessons', {
+          method: 'POST',
+          body: JSON.stringify({teacherIds,title,days,firstDate,lessonsCount,lastDate}),
+          headers: {'Content-Type':'application/json'}
+        });
+        const data = await res.json();
+        if(data.error) throw new Error(data.error);
+        tr = document.createElement('tr');
+        td = document.createElement('td');
+        td.innerHTML = data.createdLessons;
+        tr.appendChild(td);
+        table.appendChild(tr);
+      }catch(error){
+        let tr = document.createElement('tr');
+        table.appendChild(tr);
+        let td = document.createElement('td');
+        td.innerHTML = error;
+        tr.appendChild(td);
+      }
+    })
+  </script>
+</html>

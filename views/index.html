@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+  <head><style>
+    #pagination{
+        display:flex; /* расположить пункты горизонтально */
+        padding:0;
+        list-style-type: none;
+    }
+    #pagination li {
+      margin-left: 5px;
+      padding: 10px;
+      border: 1px solid black;
+    }
+</style></head>
+  <body>
+    <h1>Filter</h1>
+        <form action='/'>
+            <label for='date'>Date : </label>
+            <input type='text' name='date' id='date' /><br>
+            <label for='status'>Status ('0' if it wasnt held, '1' if it was) : </label>
+            <input type='text' name='status' id='status'/><br>
+            <label for='teacherIds'>TeacherIds : </label>
+            <input type='text' name='teacherIds' id='teacherIds'/><br>
+            <label for='studentsCount'>StudentsCount : </label>
+            <input type='text' name='studentsCount' id='text'/><br>
+            <label for='page'>Page : </label>
+            <input type='text' name='page' id='page'/><br>
+            <label for='lessonsPerPage'>LessonsPerPage : </label>
+            <input type='text' name='lessonsPerPage' id='lessonsPerPage'/><br>
+            <button>Send</button> 
+        </form>
+
+        <table id='table'></table>
+        <ul id='pagination'>
+
+        </ul>
+
+  </body>
+  <script>
+    const form = document.querySelector('form');
+    form.addEventListener('submit',async (e)=>{
+      e.preventDefault();
+      const date = form.date.value;
+      const status= form.status.value;
+      const teacherIds = form.teacherIds.value;
+      const studentsCount = form.studentsCount.value;
+      let page = form.page.value;
+      let lessonsPerPage = form.lessonsPerPage.value;
+
+      let table = document.querySelector('#table');
+      let pagination = document.querySelector('#pagination');
+      table.innerHTML = '';
+      pagination.innerHTML = '';
+      try{
+        const res = await fetch('/', {
+          method: 'POST',
+          body: JSON.stringify({date,status,teacherIds,studentsCount,page,lessonsPerPage}),
+          headers: {'Content-Type':'application/json'}
+        });
+        const data = await res.json();
+        if(data.error) {
+          throw new Error(data.error);
+        }
+        let resultLessons = data.resultLessons;
+        page = data.page;
+        lessonsPerPage = data.lessonsPerPage;
+        console.log(resultLessons.length,page,lessonsPerPage);
+        let paginationNumber = Math.ceil(resultLessons.length/lessonsPerPage);
+        for(let i = 0; i < paginationNumber; i++){
+          let li  = document.createElement('li');
+          pagination.appendChild(li);
+          li.innerHTML = i+1 ; 
+          li.addEventListener('click',function(){
+            table.innerHTML = '';
+            let start = i*lessonsPerPage;
+            let end = start + lessonsPerPage;
+            let lessons = resultLessons.slice(start,end)
+            for(let j = 0; j < lessons.length;j++){
+              let tr = document.createElement('tr');
+              table.appendChild(tr);
+              let td = document.createElement('td');
+              td.innerHTML = JSON.stringify(lessons[j]);
+              tr.appendChild(td);
+            }
+          })
+          if(page==i+1) li.click();
+          if(page>paginationNumber||i+1==paginationNumber) li.click();
+        }
+      }catch(error){
+        let tr = document.createElement('tr');
+        table.appendChild(tr);
+        let td = document.createElement('td');
+        td.innerHTML = error.message;
+        tr.appendChild(td);
+      }
+    })
+  </script>
+</html>
