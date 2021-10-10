@@ -10,6 +10,7 @@ const {
 const fs = require('fs');
 const { Op, Sequelize } = require('sequelize');
 const { resolveObjectURL } = require('buffer');
+const { group } = require('console');
 class LessonController {
   getLessons_get(req, res) {
     res.writeHead(200, { 'Content-Type': 'text/html' });
@@ -22,9 +23,9 @@ class LessonController {
   static validateAndReadyArgumentObj({
     date,
     status,
-    teacherIds,
     studentsCount,
     page,
+    teacherIds,
     lessonsPerPage,
   }) {
     const dateCheck =
@@ -34,29 +35,45 @@ class LessonController {
     const studentsCountCheck = /^(\d+,)?\d+$/;
     const pageAndLessonsPerPageCheck = /^\d+$/;
     let argumentObj = {
-      include: [
-        {
-          model: lesson_students,
-          as: 'lesson_students',
-          include: [
-            {
-              model: students,
-              as: 'student',
-            },
-          ],
-        },
-        {
-          model: lesson_teachers,
-          as: 'lesson_teachers',
-          include: [
-            {
-              model: teachers,
-              as: 'teacher',
-            },
-          ],
-        },
-      ],
+      attributes:['id',[Sequelize.literal('COUNT(CASE WHEN lesson_students.visit THEN 1 ELSE 0 END)'), 'visitCount']],
+      include:[{
+        attributes:[],
+        model: lesson_students,
+        as: 'lesson_students'
+      }],
+      order:[['id','asc']],
+      group: ['id'],
+      where:{},
+      having:[]
     };
+    if(studentsCount) {
+      if (studentsCountCheck.test(studentsCount)){
+        studentsCount =
+          studentsCount.split(',').length == 1
+            ? [Number(studentsCount), Number(studentsCount)]
+            : studentsCount
+                .split(',')
+                .sort()
+                .map((studentsCount) => Number(studentsCount));
+      }else throw new Error('Invalid data (studentsCount');
+      argumentObj.having.push(Sequelize.where(Sequelize.fn('COUNT', Sequelize.col('student_id')), {
+        [Op.between]: studentsCount
+      }));
+    }
+    if (teacherIds) {
+      if (teacherIdsCheck.test(teacherIds)) {
+        teacherIds = teacherIds.split(',').map((id) => Number(id));
+      } else throw new Error('Invalid data (teacherIds)');
+      argumentObj.group.push('teacher_id');
+      argumentObj.include.push({
+        attributes:[],
+        model: lesson_teachers,
+        as: 'lesson_teachers',
+      });
+      argumentObj.having.push(Sequelize.where(Sequelize.col('teacher_id'), {
+        [Op.in]: teacherIds
+      }));
+    }
     if (date) {
       if (dateCheck.test(date)) {
         let dates =
@@ -66,32 +83,13 @@ class LessonController {
                 .split(',')
                 .sort()
                 .map((date) => new Date(date));
-        argumentObj.where = { date: { [Op.between]: dates } };
+        argumentObj.where.date = { [Op.between]: dates } ;
       } else throw new Error('Invalid data (date)');
     }
     if (status) {
       if (statusCheck.test(status)) {
-        if (argumentObj.where) argumentObj.where.status = status;
-        else argumentObj.where = { status };
+        argumentObj.where.status = status;
       } else throw new Error('Invalid data (status)');
-    }
-    let checkStudent = true,
-      checkTeacher = true;
-    if (studentsCount) {
-      if (studentsCountCheck.test(studentsCount))
-        studentsCount =
-          studentsCount.split(',').length == 1
-            ? [Number(studentsCount), Number(studentsCount)]
-            : studentsCount
-                .split(',')
-                .sort()
-                .map((studentsCount) => Number(studentsCount));
-      else throw new Error('Invalid data (studentsCount)');
-    } else studentsCount = [-Infinity, Infinity];
-    if (teacherIds) {
-      if (teacherIdsCheck.test(teacherIds)) {
-        teacherIds = teacherIds.split(',').map((id) => Number(id));
-      } else throw new Error('Invalid data (teacherIds)');
     }
     if (page) {
       if (pageAndLessonsPerPageCheck.test(page)) page = Number(page);
@@ -104,65 +102,78 @@ class LessonController {
     } else lessonsPerPage = 5;
     return {
       argumentObj,
-      checkStudent,
-      checkTeacher,
       page,
-      lessonsPerPage,
-      studentsCount,
-      teacherIds,
+      lessonsPerPage
     };
   }
 
   async getLessons_post(req, res) {
     let resultLessons = [];
-    try {
-      let {
+    let {
         argumentObj,
-        checkStudent,
-        checkTeacher,
         page,
-        lessonsPerPage,
-        studentsCount,
-        teacherIds,
+        lessonsPerPage
       } = LessonController.validateAndReadyArgumentObj(req.body);
+    
+    try{
       let lessonsFiltered = await lessons.findAll(argumentObj);
-      lessonsFiltered.forEach((lesson) => {
-        if (teacherIds) checkTeacher = false;
+      lessonsFiltered.forEach((lesson)=>{
+        resultLessons.push({visitCount:lesson.dataValues.visitCount});
+      })
+      if(lessonsFiltered.length==0) return res.json({resultLessons,page,lessonsPerPage});
+      argumentObj = {
+        include: [
+          {
+            model: lesson_students,
+            as: 'lesson_students',
+            include: [
+              {
+                model: students,
+                as: 'student',
+              },
+            ]
+          },
+          {
+            model: lesson_teachers,
+            as: 'lesson_teachers',
+            include: [
+              {
+                model: teachers,
+                as: 'teacher',
+              },
+            ],
+          }
+        ],
+        order: [['id','asc']],
+        where: {
+          'id':{
+            [Op.in]: lessonsFiltered.map(lesson=>lesson.dataValues.id)
+          }
+        }
+      }
+      
+      lessonsFiltered = await lessons.findAll(argumentObj);
+      lessonsFiltered.forEach((lesson,i)=>{
         const { id, date, title, status } = lesson.dataValues;
-        let resultLesson = { id, date, title, status };
-        resultLesson.visitCount = 0;
-        resultLesson.students = [];
-        resultLesson.teachers = lesson.dataValues.lesson_teachers.map(
+        let resultLesson = { id, date, title, status, visitCount: resultLessons[i].visitCount};
+        resultLesson.teachers = lesson.lesson_teachers.map(
           (lesson_teacher) => {
             const { id, name } = lesson_teacher.dataValues.teacher.dataValues;
-            if (!checkTeacher && teacherIds.indexOf(id) != -1)
-              checkTeacher = true;
             return { id, name };
           },
         );
-        const studentsCountRes = lesson.dataValues.lesson_students.length;
-        if (
-          studentsCount[0] <= studentsCountRes &&
-          studentsCountRes <= studentsCount[1]
-        ) {
-          resultLesson.students = lesson.dataValues.lesson_students.map(
-            (lesson_students) => {
-              const { visit } = lesson_students;
-              if (visit) resultLesson.visitCount++;
+        resultLesson.students = lesson.lesson_students.map(
+            (lesson_student) => {
               const { id, name } =
-                lesson_students.dataValues.student.dataValues;
-              return { id, name, visit };
+                lesson_student.dataValues.student.dataValues;
+              return { id, name, visit: lesson_student.visit };
             },
-          );
-        } else checkStudent = false;
-        if (checkStudent && checkTeacher) {
-          resultLessons.push(resultLesson);
-        }
-        checkStudent = true;
-      });
-      resultLessons.sort((a, b) => a.id - b.id);
+        );
+        resultLessons[i] = resultLesson;
+       }
+      )
       res.json({ resultLessons, page, lessonsPerPage });
-    } catch (error) {
+    }catch (error) {
       res.status(400).json({ error: error.message });
     }
   }
@@ -183,7 +194,6 @@ class LessonController {
     const teacherIdsCheck = /^([1-9]\d*,)*[1-9]\d*$/;
     const lessonsCountCheck = /^[1-9]\d*$/;
     const daysCheck = /^([0-6],)*[0-6]$/;
-    //console.log(teacherIds, days, title, firstDate, lessonsCount, lastDate);
     if (
       dateCheck.test(firstDate) &&
       teacherIdsCheck.test(teacherIds) &&

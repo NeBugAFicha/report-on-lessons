@@ -12,12 +12,19 @@ function initModels(sequelize) {
   var students = _students(sequelize, DataTypes);
   var teachers = _teachers(sequelize, DataTypes);
 
-  lesson_students.belongsTo(lessons, { as: 'lesson', foreignKey: 'lesson_id' });
+  
+  lesson_students.belongsTo(lessons, {
+    as : 'lesson',
+    foreignKey: 'lesson_id' 
+  });
   lessons.hasMany(lesson_students, {
     as: 'lesson_students',
     foreignKey: 'lesson_id',
   });
-  lesson_teachers.belongsTo(lessons, { as: 'lesson', foreignKey: 'lesson_id' });
+  lesson_teachers.belongsTo(lessons, { 
+    as: 'lesson',
+    foreignKey: 'lesson_id'
+  });
   lessons.hasMany(lesson_teachers, {
     as: 'lesson_teachers',
     foreignKey: 'lesson_id',
